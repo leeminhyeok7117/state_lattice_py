@@ -3,6 +3,8 @@
 import os, sys
 import numpy as np
 from collections import namedtuple
+from scipy.spatial import KDTree
+
 import rclpy
 from rclpy.qos import QoSProfile
 
@@ -11,6 +13,7 @@ from sensor_msgs.msg import PointCloud
 from std_msgs.msg import Float64
 
 from global_path import GlobalPath
+from cubic_hermit_planner import hermite_with_constraints
 
 TABLE_PATH = os.path.dirname(os.path.abspath(__file__)) + "/lookup_table.csv"
 Param = namedtuple('Param',['nxy','nh','d','a_min','a_max','p_min','p_max','ns'])
@@ -24,6 +27,8 @@ class StateLatticePlanner:
         self.current_speed = node.create_subscription(Float64, '/current_speed', self.current_speed_callback, qos_profile)
 
         self.glob_path = GlobalPath(gp_name)
+        self.lookup_table = self.get_lookup_table(TABLE_PATH)
+        self.kdtree = KDTree(self.lookup_table[:, :3])
         
         self.max_steer = np.deg2rad(25.0)
         self.min_steer = -np.deg2rad(25.0)
@@ -36,7 +41,7 @@ class StateLatticePlanner:
         self.cd_path = None
         self.sel_path = None
         
-    #classification by speed
+    #classification using speed
     def current_speed_callback(self, data):
         v_max = 30.0 #나중에 환산 
         x_low, x_high = 3.0 ,21.0
@@ -54,7 +59,7 @@ class StateLatticePlanner:
     
     def get_lookup_table(self, table_path):
         return np.loadtxt(table_path, delimiter=',', skiprows=1)
-
+    
     def set_parameters(self, situation):
         nxy = 10 #조정해야됨 (가변으로 할꺼면 속도로 가변 해야될듯)
         nh = 3 #고정일듯?
@@ -66,6 +71,7 @@ class StateLatticePlanner:
         
         return Param(nxy, nh, d, a_min, a_max, p_min, p_max, ns)
     
+    ###여기 glob_path관련된 값들 수정좀 해줘야될듯 -> 나중에 지역좌표로 바꿀때.., weight도 조정해야됨
     def get_goal_angle_obs(self, obs_xy, x, y, max_lat_offset = 3.0, max_angle = np.deg2rad(20.0), weight = 0.8):
         _, l_self = self.glob_path.xy2sl(x, y)
         dir_path = -np.sign(l_self)
@@ -80,9 +86,9 @@ class StateLatticePlanner:
         angle_obs = dir_obs * ratio_obs * max_angle
 
         goal_angle = weight * angle_obs + (1 - weight) * angle_path
-        return goal_angle ################################################여기 glob_path관련된 값들 수정좀 해줘야될듯 -> 나중에 지역좌표로 바꿀때..
-    
-    #Sampling (Normal, Biased)
+        return goal_angle
+
+##########################Sampling (Normal, Biased)##########################
     def sample_states(self, angle_samples, a_min, a_max, d, p_min, p_max, nh):
         angle_samples = np.array(angle_samples)
         a_vals = a_min + (a_max - a_min) * angle_samples  
@@ -92,7 +98,7 @@ class StateLatticePlanner:
 
         if nh == 1:
             yawf = ((p_max - p_min) / 2) + a_vals
-            states = np.stack((xf, yf, yawf), axis=1).tolist()
+            states = np.stack((xf, yf, yawf), axis=1)
         else:
             j_vals = np.linspace(0, nh - 1, nh)
             yaw_offsets = p_min + (p_max - p_min) * j_vals / (nh - 1)  
@@ -101,7 +107,7 @@ class StateLatticePlanner:
             xf = np.tile(xf[:, None], (1, nh))               
             yf = np.tile(yf[:, None], (1, nh))              
 
-            states = np.stack((xf, yf, yawf), axis=2).reshape(-1, 3).tolist()
+            states = np.stack((xf, yf, yawf), axis=2).reshape(-1, 3)
 
         return states
 
@@ -172,47 +178,45 @@ class StateLatticePlanner:
 
         di = csumnav[idx]                               
 
-        states = self.sample_states(di.tolist(), p.a_min, p.a_max, p.d, p.p_min, p.p_max, p.nh)
+        states = self.sample_states(di, p.a_min, p.a_max, p.d, p.p_min, p.p_max, p.nh)
         return states
-    
-    #Search nearest point at lookup table
-    def search_nearest_points(self, t_x, t_y, t_yaw, lookup_table):
-        coords = lookup_table[:, :3]
-        target = np.array([t_x, t_y, t_yaw])
-        dists = np.linalg.norm(coords -target, axis=1)
-        index = np.argmin(dists)
-        return lookup_table[index]
-    
+############################################################################# 
+
     #Select candidate points at sampling points
     def candidate_point_at_sampling(self, states, goal_angle, path_num=9):
-        xs = np.array([s[0] for s in states])
-        ys = np.array([s[1] for s in states])
-        angles = np.arctan2(ys, xs)  
+        angles = np.arctan2(states[:, 1], states[:, 0])  
     
         diffs = angles - goal_angle
         diffs = (diffs + np.pi) % (2 * np.pi) - np.pi
-        idx9 = np.argsort(np.abs(diffs) )[:path_num]
+        idx = np.argsort(np.abs(diffs))[:path_num]
         
-        return [states[i] for i in idx9]
+        return states[idx]
         
-    def compare_point_level1(self, obs_xy, x, y, path_num = 9):
-        candidate_points = [None] * path_num
-        lookup_table = self.get_lookup_table(TABLE_PATH)
+    def generate_candidate_points(self, obs_xy, x, y, path_num = 9):
         curve_flag, goal_angle_curve = self.glob_path.det_sharp_curve()
         obs_flag = True if obs_xy is not None else False
-        if obs_flag:
+        if obs_flag: ###조건문 수정좀 해야될듯
             goal_angle = self.get_goal_angle_obs(obs_xy, x, y)
         elif curve_flag:
             goal_angle = goal_angle_curve
+        else:
+            goal_angle = 0.0
             
         states = self.calc_biased_coordinate(goal_angle) if curve_flag or obs_flag else self.calc_normal_coordinate()
         candidate_points_sampling = self.candidate_point_at_sampling(states, goal_angle, path_num)
         
-        for state in candidate_points_sampling:
-            candidate_point = self.search_nearest_points(state[0], state[1], state[2], lookup_table)
-            candidate_points.append(candidate_point)
+        candidate_points = []
+        _, idxs = self.kdtree.query(candidate_points_sampling, k=1) 
+        candidate_points = self.lookup_table[idxs]
             
         return candidate_points
+    
+    def generate_hermite_spline(self, obs_xy, x, y):
+        candidate_points = self.generate_candidate_points(obs_xy, x, y)
+        for i in candidate_points:
+            
+  
+        
             
     def state_lattice_planner(self, obs_xy, x, y):
         
