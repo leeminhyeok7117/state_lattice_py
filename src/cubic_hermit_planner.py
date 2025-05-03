@@ -24,7 +24,7 @@ def hermite_with_constraints(start, end, yaw_start, yaw_end):
     # 파라미터 값
     wheelbase = 1.04
     max_yaw = np.deg2rad(25)
-    num_points = 50
+    num_points = 25
 
     # 시작과 끝점의 좌표, yaw값의 tangent값
     x = [start[0], end[0]]
@@ -46,14 +46,11 @@ def hermite_with_constraints(start, end, yaw_start, yaw_end):
     curvature_vals = np.abs(ddyddx_vals) / ((1 + dydx_vals**2)**(3/2))
     
     # yaw, curvature값 limit제한, 
-    for i in range(len(yaw_vals)):
-        if abs(yaw_vals[i]) > max_yaw:
-            yaw_vals[i] = np.sign(yaw_vals[i]) * max_yaw
+    yaw_vals = np.clip(yaw_vals, -max_yaw, max_yaw)
     
     max_curvature = np.tan(max_yaw) / wheelbase   #bicycle model의 곡률 (tan(yaw)/wheelbase)
     curvature_vals = np.clip(curvature_vals, None, max_curvature)
     
-
     return x_vals, y_vals, yaw_vals, curvature_vals
 
 

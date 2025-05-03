@@ -71,15 +71,15 @@ class StateLatticePlanner:
         
         return Param(nxy, nh, d, a_min, a_max, p_min, p_max, ns)
     
-    ###여기 glob_path관련된 값들 수정좀 해줘야될듯 -> 나중에 지역좌표로 바꿀때.., weight도 조정해야됨
+    #weight 조정해야됨
     def get_goal_angle_obs(self, obs_xy, x, y, max_lat_offset = 3.0, max_angle = np.deg2rad(20.0), weight = 0.8):
-        _, l_self = self.glob_path.xy2sl(x, y)
-        dir_path = -np.sign(l_self)
-        ratio_path = min(abs(l_self) / max_lat_offset, 1.0)
+        l_car = self.glob_path.q_val_local(0, 0)
+        dir_path = -np.sign(l_car)
+        ratio_path = min(abs(l_car) / max_lat_offset, 1.0)
         angle_path = dir_path * ratio_path * max_angle
 
         obs_x, obs_y = obs_xy
-        _, l_obs = self.glob_path.xy2sl(obs_x, obs_y)
+        l_obs = self.glob_path.q_val_local(obs_x, obs_y) #나중에 장애물 복수로 받아지게 ㄱ
 
         dir_obs = -np.sign(l_obs)
         ratio_obs = min(abs(l_obs) / max_lat_offset, 1.0)
@@ -182,7 +182,7 @@ class StateLatticePlanner:
         return states
 ############################################################################# 
 
-    #Select candidate points at sampling points
+    #Select candidate points at sampling points (Parameter: path_num)
     def candidate_point_at_sampling(self, states, goal_angle, path_num=9):
         angles = np.arctan2(states[:, 1], states[:, 0])  
     
@@ -211,13 +211,20 @@ class StateLatticePlanner:
             
         return candidate_points
     
-    def generate_hermite_spline(self, obs_xy, x, y):
-        candidate_points = self.generate_candidate_points(obs_xy, x, y)
-        for i in candidate_points:
+    def generate_hermite_spline(self, obs_xy, x, y, point_num=5):
+        candidate_paths = []
+        candidate_points = self.generate_candidate_points(obs_xy, x, y)                        
+        for state in candidate_points:
+            x_vals, y_vals, yaw_vals = hermite_with_constraints([0,0], [state[0], state[1]], 0, state[2]) #현재 yaw값 적용해야되는지 잘 몰겟(아닐듯?)
             
-  
-        
-            
-    def state_lattice_planner(self, obs_xy, x, y):
+            idxs = np.round(np.linspace(0, len(x_vals)-1, point_num)).astype(int)
+            candidate_path = np.stack([x_vals[idxs],y_vals[idxs],yaw_vals[idxs]], axis=1) 
+            candidate_paths.append(candidate_path)
+
+        return candidate_paths      
+    
+    # def cost_function(self, ):
+
+    # def state_lattice_planner(self, obs_xy, x, y):
         
         

@@ -17,7 +17,7 @@ def calc_states_list():
     y = np.arange(-10.0, 12.0, 2)
 
     max_yaw = np.deg2rad(25.0)
-    n = 5   #yaw값 개수
+    n = 3   #yaw값 개수
     step = (2 * max_yaw) / (n - 1)
     yaw = np.arange(-max_yaw, max_yaw+step, step)
 

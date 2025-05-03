@@ -43,9 +43,39 @@ class GlobalPath:
         self.cur_ref_index = 0
         self.cur_s_ref_index = 0
         self.last_search_time = 0
-        
+     
+    #######################지역 경로 용도로 사용######################    
+    def get_local_path(self, x, y, yaw, lookahead_s: 20.0):
+        idx_start, idx_end = self.cur_ref_index-3, self.cur_ref_index+ lookahead_s
 
+        gx = np.array(self.rx[idx_start:idx_end])
+        gy = np.array(self.ry[idx_start:idx_end])
 
+        dx = gx - x       
+        dy = gy - y
+        c = np.cos(yaw)
+        s = np.sin(yaw)
+
+        lx =  c*dx + s*dy
+        ly = -s*dx + c*dy
+
+        return lx, ly 
+    
+    def local_path(self, x, y, yaw):
+        lx, ly = self.get_local_path(x, y, yaw)
+        self.local_x, self.local_y, self.local_yaw,_ ,_ ,_ = cubic_spline_planner.calc_spline_course(lx, ly, ds=0.1)  
+    
+    def getClosestSIndexCurXY_local(self, x, y, mode=0, mission=None): 
+        ref_index = 0
+        iteration = len(self.rx)
+        ref_index = cartesian_frenet_conversion.getClosestSPoint(self.local_x, self.local_y, x, y, self.cur_ref_index, iteration, mode=mode, mission=mission)
+        return ref_index
+
+    def q_val_local(self, x, y, mode=0, base_iter=30, mission=None):
+        ref_index = self.getClosestSIndexCurXY_local(x, y, mode=mode, base_iter=base_iter, mission=mission)
+        return cartesian_frenet_conversion.calcOffsetPoint(x, y, self.local_x[ref_index], self.local_y[ref_index], self.local_yaw[ref_index]) 
+    ################################################################
+   
     def getClosestSIndexCurXY(self, x, y, mode=0, base_iter=30, mission=None): 
         ref_index = 0
 
@@ -66,7 +96,7 @@ class GlobalPath:
         else:
             pass
 
-        return ref_index
+        return ref_index                                                                         
 
     def getClosestSIndexCurS(self, s):
         return bisect.bisect(self.s, s) - 1
