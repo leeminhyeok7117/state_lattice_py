@@ -72,7 +72,7 @@ class StateLatticePlanner:
         return Param(nxy, nh, d, a_min, a_max, p_min, p_max, ns)
     
     #weight 조정해야됨
-    def get_goal_angle_obs(self, obs_xy, x, y, max_lat_offset = 3.0, max_angle = np.deg2rad(20.0), weight = 0.8):
+    def get_goal_angle_obs(self, obs_xy, max_lat_offset = 3.0, max_angle = np.deg2rad(20.0), weight = 0.8):
         l_car = self.glob_path.q_val_local(0, 0)
         dir_path = -np.sign(l_car)
         ratio_path = min(abs(l_car) / max_lat_offset, 1.0)
@@ -192,7 +192,9 @@ class StateLatticePlanner:
         
         return states[idx]
         
-    def generate_candidate_points(self, obs_xy, x, y, path_num = 9):
+    def generate_candidate_points(self, obs_xy, x, y, yaw, path_num = 9):
+        self.glob_path.local_path(x, y, yaw)
+        
         curve_flag, goal_angle_curve = self.glob_path.det_sharp_curve()
         obs_flag = True if obs_xy is not None else False
         if obs_flag: ###조건문 수정좀 해야될듯
@@ -211,9 +213,8 @@ class StateLatticePlanner:
             
         return candidate_points
     
-    def generate_hermite_spline(self, obs_xy, x, y, point_num=5):
-        candidate_paths = []
-        candidate_points = self.generate_candidate_points(obs_xy, x, y)                        
+    def generate_hermite_spline(self, candidate_points, point_num=5):
+        candidate_paths = []                
         for state in candidate_points:
             x_vals, y_vals, yaw_vals = hermite_with_constraints([0,0], [state[0], state[1]], 0, state[2]) #현재 yaw값 적용해야되는지 잘 몰겟(아닐듯?)
             
@@ -225,6 +226,6 @@ class StateLatticePlanner:
     
     # def cost_function(self, ):
 
-    # def state_lattice_planner(self, obs_xy, x, y):
+    # def state_lattice_planner(self, obs_xy, x, y, yaw):
         
         

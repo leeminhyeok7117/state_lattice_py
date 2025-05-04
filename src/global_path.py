@@ -43,36 +43,47 @@ class GlobalPath:
         self.cur_ref_index = 0
         self.cur_s_ref_index = 0
         self.last_search_time = 0
+        self.last_local_index = 0
      
     #######################지역 경로 용도로 사용######################    
-    def get_local_path(self, x, y, yaw, lookahead_s: 20.0):
-        idx_start, idx_end = self.cur_ref_index-3, self.cur_ref_index+ lookahead_s
+    
+    #현재 위치 기반으로 인덱스를 구하고 그만큼 local 경로 뽑아냄
+    def get_local_path(self, x, y, yaw, lookbehind_s = 3, lookahead_s = 20):
+        glob_index = self.getClosestSIndexCurXY(x, y, 1)
+        idx_start = max(0, glob_index - lookbehind_s)
+        idx_end = min(glob_index + lookahead_s, len(self.rx))  
 
         gx = np.array(self.rx[idx_start:idx_end])
         gy = np.array(self.ry[idx_start:idx_end])
 
-        dx = gx - x       
-        dy = gy - y
-        c = np.cos(yaw)
-        s = np.sin(yaw)
-
+        dx, dy = gx - x, gy - y
+        c, s  = np.cos(yaw), np.sin(yaw)
         lx =  c*dx + s*dy
         ly = -s*dx + c*dy
 
         return lx, ly 
     
+    # 위에서 구한 local 경로 점 보간, 밑에 두개의 값 사용하고 싶으면 사전에 한번 호출해야됨
     def local_path(self, x, y, yaw):
         lx, ly = self.get_local_path(x, y, yaw)
-        self.local_x, self.local_y, self.local_yaw,_ ,_ ,_ = cubic_spline_planner.calc_spline_course(lx, ly, ds=0.1)  
-    
-    def getClosestSIndexCurXY_local(self, x, y, mode=0, mission=None): 
+        if len(lx) < 2:
+            self.local_x, self.local_y, self.local_yaw = [],[],[]
+            return 
+        else:
+            self.local_x, self.local_y, self.local_yaw,_ ,_ ,_ = cubic_spline_planner.calc_spline_course(lx, ly, ds=0.1)  
+        
+    # 실시간으로 변하는 local 경로에서, GPS음영에서는 비전에서 받는 경로 그대로 사용해서 local_x,y에 저장하기(mission 값으로 판단->추후 수정)
+    def getClosestSIndexCurXY_local(self, mode=0, mission=None): 
         ref_index = 0
-        iteration = len(self.rx)
-        ref_index = cartesian_frenet_conversion.getClosestSPoint(self.local_x, self.local_y, x, y, self.cur_ref_index, iteration, mode=mode, mission=mission)
+        iteration = len(self.local_x)
+        
+        ref_index = cartesian_frenet_conversion.getClosestSPoint(self.local_x, self.local_y, 0, 0, self.last_local_index, iteration, mode=mode, mission=mission)
+        self.last_local_index = ref_index
         return ref_index
 
-    def q_val_local(self, x, y, mode=0, base_iter=30, mission=None):
-        ref_index = self.getClosestSIndexCurXY_local(x, y, mode=mode, base_iter=base_iter, mission=mission)
+    # local좌표에서 얻는 q값 (x,y값은 차의 위치(0,0)이나 장애물의 위치임)
+    def q_val_local(self, x, y, mode=0, mission=None):
+        ref_index = self.getClosestSIndexCurXY_local(mode=mode, mission=mission)
         return cartesian_frenet_conversion.calcOffsetPoint(x, y, self.local_x[ref_index], self.local_y[ref_index], self.local_yaw[ref_index]) 
     ################################################################
    
