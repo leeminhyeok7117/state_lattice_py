@@ -37,6 +37,11 @@ class StateLatticePlanner:
         self.y_width = 0.0
         self.current_speed = 0.0
         
+        self.max_cost = 100
+        self.obstacle_force = 2.0 #2m
+        self.weight_1 = 10
+        self.weight_2 = 10
+        
         self.visual = True
         self.cd_path = None
         self.sel_path = None
@@ -224,8 +229,33 @@ class StateLatticePlanner:
 
         return candidate_paths      
     
-    # def cost_function(self, ):
+    def cost_function(self, pose, obs_xy):
+        cost1, cost2 = 0.0, 0.0
+        path_separation = self.glob_path.q_val_local(pose[-1][0], pose[-1][1])
+        cost1 = abs(path_separation/2.3) if -0.5 <= path_separation <= 0.5 else abs(path_separation * 100)
+        
+        if obs_xy is not None:
+            obs_xy = np.array(obs_xy)
+            points_xy = pose[1:, :2]
+            dx = points_xy[:, np.newaxis, 0] - obs_xy[np.newaxis, :, 0]
+            dy = points_xy[:, np.newaxis, 1] - obs_xy[np.newaxis, :, 1]
+            
+            min_dists = np.min(np.hypot(dx, dy), axis=1) #각 점과 모든 장애물 거리 비교해서 가장 작은 값 추출
 
-    # def state_lattice_planner(self, obs_xy, x, y, yaw):
+            for obs_d in min_dists:
+                if 0.0 < obs_d < 1.0:
+                    cost2 = self.max_cost
+                    break
+                else:
+                    cost2 += (self.obstacle_force - obs_d) / self.obstacle_force if obs_d < self.obstacle_force else 0
+
+        return cost1*self.weight_1 + cost2*self.weight_2
+        
+    def state_lattice_planner(self, obs_xy, x, y, yaw):
+        candidate_points = self.generate_candidate_points(obs_xy, x, y, yaw)
+        candidate_paths = np.array(self.generate_hermite_spline(candidate_points))
+        selected_path = min(candidate_paths,key=lambda p: self.cost_function(p, obs_xy))   
+        
+        return selected_path
         
         
