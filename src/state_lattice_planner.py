@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*-coding:utf-8-*-
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6c227fa (ros2 able version)
 import os, sys
 import numpy as np
 from collections import namedtuple
@@ -8,12 +12,22 @@ from scipy.spatial import KDTree
 import rclpy
 from rclpy.qos import QoSProfile
 
+<<<<<<< HEAD
 from geometry_msgs.msg import Point32
 from sensor_msgs.msg import PointCloud
 from std_msgs.msg import Float64
 
 from global_path import GlobalPath
 from cubic_hermit_planner import hermite_with_constraints
+=======
+from sensor_msgs.msg import PointCloud
+from std_msgs.msg import Float64, Header
+from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs_py import point_cloud2
+
+from global_path import GlobalPath
+from cubic_hermite_planner import hermite_with_constraints
+>>>>>>> 6c227fa (ros2 able version)
 
 TABLE_PATH = os.path.dirname(os.path.abspath(__file__)) + "/lookup_table.csv"
 Param = namedtuple('Param',['nxy','nh','d','a_min','a_max','p_min','p_max','ns'])
@@ -22,10 +36,17 @@ class StateLatticePlanner:
     def __init__(self, node, gp_name):
         qos_profile = QoSProfile(depth=1)
         self.node = node
+<<<<<<< HEAD
         self.candidate_pub = node.create_publisher(PointCloud,'/CDpath', qos_profile)
         self.selected_pub = node.create_publisher(PointCloud,'/SLpath',  qos_profile)
         self.current_speed = node.create_subscription(Float64, '/current_speed', self.current_speed_callback, qos_profile)
 
+=======
+        self.candidate_pub = node.create_publisher(PointCloud2,'/CDpath_st', qos_profile)
+        self.selected_pub = node.create_publisher(PointCloud2,'/SLpath_st',  qos_profile)
+        self.current_speed = node.create_subscription(Float64, '/current_speed', self.current_speed_callback, qos_profile)
+        
+>>>>>>> 6c227fa (ros2 able version)
         self.glob_path = GlobalPath(gp_name)
         self.lookup_table = self.get_lookup_table(TABLE_PATH)
         self.kdtree = KDTree(self.lookup_table[:, :3])
@@ -41,10 +62,49 @@ class StateLatticePlanner:
         self.obstacle_force = 2.0 #2m
         self.weight_1 = 10
         self.weight_2 = 10
+<<<<<<< HEAD
         
         self.visual = True
         self.cd_path = None
         self.sel_path = None
+=======
+
+    def visual_selected_path(self, selected_path):
+        header = Header()
+        header.stamp = self.node.get_clock().now().to_msg()
+        header.frame_id = "glob_path"
+
+        fields = [
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+        ]
+        structured_dtype = np.dtype([('x', np.float32), ('y', np.float32), ('z', np.float32)])
+        points = np.array([(p[0], p[1], 0.0) for p in selected_path], dtype=structured_dtype)
+
+        pc2_msg = point_cloud2.create_cloud(header=header, fields=fields, points=points)
+        pc2_msg.is_dense = True 
+                
+        self.selected_pub.publish(pc2_msg)
+    
+    def visual_candidate_paths(self, candidate_paths):
+        header = Header()
+        header.stamp = self.node.get_clock().now().to_msg()
+        header.frame_id = "glob_path"
+    
+        fields = [
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+        ]
+        structured_dtype = np.dtype([('x', np.float32), ('y', np.float32), ('z', np.float32)])
+        points = np.array([(p[0], p[1], 0.0) for path in candidate_paths for p in path], dtype=structured_dtype)
+                
+        pc2_msg = point_cloud2.create_cloud(header=header, fields=fields, points=points)
+        pc2_msg.is_dense = True 
+
+        self.candidate_pub.publish(pc2_msg)
+>>>>>>> 6c227fa (ros2 able version)
         
     #classification using speed
     def current_speed_callback(self, data):
@@ -203,7 +263,11 @@ class StateLatticePlanner:
         curve_flag, goal_angle_curve = self.glob_path.det_sharp_curve()
         obs_flag = True if obs_xy is not None else False
         if obs_flag: ###조건문 수정좀 해야될듯
+<<<<<<< HEAD
             goal_angle = self.get_goal_angle_obs(obs_xy, x, y)
+=======
+            goal_angle = self.get_goal_angle_obs(obs_xy)
+>>>>>>> 6c227fa (ros2 able version)
         elif curve_flag:
             goal_angle = goal_angle_curve
         else:
@@ -221,7 +285,11 @@ class StateLatticePlanner:
     def generate_hermite_spline(self, candidate_points, point_num=5):
         candidate_paths = []                
         for state in candidate_points:
+<<<<<<< HEAD
             x_vals, y_vals, yaw_vals = hermite_with_constraints([0,0], [state[0], state[1]], 0, state[2]) #현재 yaw값 적용해야되는지 잘 몰겟(아닐듯?)
+=======
+            x_vals, y_vals, yaw_vals, _ = hermite_with_constraints([0,0], [state[0], state[1]], 0, state[2]) #현재 yaw값 적용해야되는지 잘 몰겟(아닐듯?)
+>>>>>>> 6c227fa (ros2 able version)
             
             idxs = np.round(np.linspace(0, len(x_vals)-1, point_num)).astype(int)
             candidate_path = np.stack([x_vals[idxs],y_vals[idxs],yaw_vals[idxs]], axis=1) 
@@ -236,6 +304,12 @@ class StateLatticePlanner:
         
         if obs_xy is not None:
             obs_xy = np.array(obs_xy)
+<<<<<<< HEAD
+=======
+            if obs_xy.ndim == 1:
+                obs_xy = obs_xy.reshape(1, 2)
+                
+>>>>>>> 6c227fa (ros2 able version)
             points_xy = pose[1:, :2]
             dx = points_xy[:, np.newaxis, 0] - obs_xy[np.newaxis, :, 0]
             dy = points_xy[:, np.newaxis, 1] - obs_xy[np.newaxis, :, 1]
@@ -251,10 +325,19 @@ class StateLatticePlanner:
 
         return cost1*self.weight_1 + cost2*self.weight_2
         
+<<<<<<< HEAD
     def state_lattice_planner(self, obs_xy, x, y, yaw):
         candidate_points = self.generate_candidate_points(obs_xy, x, y, yaw)
         candidate_paths = np.array(self.generate_hermite_spline(candidate_points))
         selected_path = min(candidate_paths,key=lambda p: self.cost_function(p, obs_xy))   
+=======
+    def state_lattice_planner(self, x, y, heading, obs_xy=None):
+        candidate_points = self.generate_candidate_points(obs_xy, x, y, heading)
+        candidate_paths = np.array(self.generate_hermite_spline(candidate_points))
+        self.visual_candidate_paths(candidate_paths)
+        selected_path = min(candidate_paths,key=lambda p: self.cost_function(p, obs_xy))   
+        self.visual_selected_path(selected_path)
+>>>>>>> 6c227fa (ros2 able version)
         
         return selected_path
         

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """
 
 Lookup Table generation for model predictive trajectory generator
@@ -11,13 +12,26 @@ import numpy as np
 import math
 
 from cubic_hermit_planner import hermite_with_constraints
+=======
+#!/usr/bin/env python
+# -*-coding:utf-8-*-
+
+from matplotlib import pyplot as plt
+import numpy as np
+
+from cubic_hermite_planner import hermite_with_constraints
+>>>>>>> 6c227fa (ros2 able version)
 
 def calc_states_list():
     x = np.arange(3.0, 24.0, 3)
     y = np.arange(-10.0, 12.0, 2)
 
     max_yaw = np.deg2rad(25.0)
+<<<<<<< HEAD
     n = 3   #yaw값 개수
+=======
+    n = 5   #yaw값 개수
+>>>>>>> 6c227fa (ros2 able version)
     step = (2 * max_yaw) / (n - 1)
     yaw = np.arange(-max_yaw, max_yaw+step, step)
 

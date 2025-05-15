@@ -10,9 +10,12 @@ Created on Mon Aug 24 15:12:36 2020
 # 경로 데이터 로드, 좌표 변환, 
 
 import numpy as np
+<<<<<<< HEAD
 from math import sin, cos, tan, copysign, sqrt, degrees, pi
 from scipy.spatial import distance
 import os, sys
+=======
+>>>>>>> 6c227fa (ros2 able version)
 import time
 import bisect
 # sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -143,8 +146,13 @@ class GlobalPath:
     def max_curvature(self, last_yaw, current_yaw):
        max_max = abs(current_yaw - last_yaw)
     
+<<<<<<< HEAD
        if max_max >= pi:  # yaw 값이 360도를 넘어갈 때
            max_max = 2 * pi - max_max
+=======
+       if max_max >= np.pi:  # yaw 값이 360도를 넘어갈 때
+           max_max = 2 * np.pi - max_max
+>>>>>>> 6c227fa (ros2 able version)
        
        return max_max
    
@@ -175,6 +183,7 @@ class GlobalPath:
             except:
                 cur_diff = abs(self.max_curvature(self.ryaw[max_index-1], self.ryaw[index]))
                 
+<<<<<<< HEAD
             if cur_diff <= 5 * pi / 180:
                 target_speed = int((MAX_CONERING_SPEED - MAX_SPEED)/(5 * pi/180) * cur_diff + MAX_SPEED)
             elif cur_diff >= 30 * pi / 180:
@@ -184,6 +193,17 @@ class GlobalPath:
             
             # 직선도로 속도는 최대속도 (MAX_CONERING_SPEED --> MAX_SPEED)
             if cur_diff <= pi / 180:
+=======
+            if cur_diff <= 5 * np.pi / 180:
+                target_speed = int((MAX_CONERING_SPEED - MAX_SPEED)/(5 * np.pi/180) * cur_diff + MAX_SPEED)
+            elif cur_diff >= 30 * np.pi / 180:
+                target_speed = MIN_CONERING_SPEED
+            else:
+                target_speed = int(((MIN_CONERING_SPEED - MAX_CONERING_SPEED)/(25 * np.pi/180)) * (cur_diff - 5*np.pi/180) + MAX_CONERING_SPEED)
+            
+            # 직선도로 속도는 최대속도 (MAX_CONERING_SPEED --> MAX_SPEED)
+            if cur_diff <= np.pi / 180:
+>>>>>>> 6c227fa (ros2 able version)
                 target_speed = MAX_SPEED    
 
             if target_speed >= MAX_SPEED:
